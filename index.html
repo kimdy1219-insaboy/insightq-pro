@@ -1,536 +1,392 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InsightQ Pro - AI 맞춤 질문 생성기</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        /* Pretendard Font */
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
-        
-        body {
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-            scroll-behavior: smooth;
-        }
+<script>
+  // --- State Management ---
+  let currentStep = 'step1';
+  let selectedType = '';   // 'job', 'culture', 'ai', 'leadership'
+  let selectedKey = '';    // e.g., 'software-developer' or 'team-lead'
 
-        /* --- Design System --- */
-        :root {
-            --primary-start: #06b6d4; /* Cyan 500 */
-            --primary-end: #3b82f6;   /* Blue 500 */
-            --secondary-start: #8b5cf6; /* Violet 500 */
-            --secondary-end: #ec4899;   /* Pink 500 */
-        }
+  // --- UI Elements ---
+  const ui = {
+    step1: document.getElementById('step1'),
+    step2: document.getElementById('step2'),
+    step2ai: document.getElementById('step2-ai'),
+    loading: document.getElementById('loading'),
+    step3: document.getElementById('step3'),
+    questionsContainer: document.getElementById('questionsContainer'),
+    questionsTitle: document.getElementById('questionsTitle'),
+    selectionSummary: document.getElementById('selectionSummary'),
+    loadingText: document.getElementById('loading-text'),
+    loadingSubtext: document.getElementById('loading-subtext'),
+    jdInput: document.getElementById('jd-input')
+  };
 
-        .gradient-bg {
-            background: linear-gradient(135deg, var(--primary-start) 0%, var(--primary-end) 100%);
-        }
+  // --- Navigation and UI Control ---
+  function showStep(stepId, loadingMessage = null) {
+    ['step1', 'step2', 'step2ai', 'loading', 'step3'].forEach(k => {
+      ui[k].classList.add('hidden');
+    });
 
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
+    const key = stepId.replace('-', '');
+    const el = stepId === 'step2-ai' ? ui['step2ai'] : ui[stepId];
+    if (el) {
+      el.classList.remove('hidden');
+      el.classList.add('animate-fadeInUp');
+    }
 
-        .card-hover:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-        }
+    if (stepId === 'loading') {
+      ui.loadingText.textContent = loadingMessage || 'AI가 맞춤 질문을 생성하고 있습니다.';
+      ui.loadingSubtext.textContent = '잠시만 기다려주세요...';
+    }
 
-        .btn-press {
-            transition: transform 0.15s ease;
-        }
-        .btn-press:active {
-            transform: scale(0.96);
-        }
-        
-        .question-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s ease;
-        }
+    currentStep = stepId;
+    window.scrollTo(0, 0);
+  }
 
-        /* Animation */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeInUp {
-            animation: fadeInUp 0.6s ease-out forwards;
-        }
-        
-        /* Loader */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--primary-start);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+  function selectInterviewType(type) {
+    selectedType = type;
+    if (type === 'job' || type === 'culture' || type === 'leadership') {
+      buildStep2UI(type);
+      showStep('step2');
+    } else if (type === 'ai') {
+      showStep('step2-ai');
+    }
+  }
 
-        /* Print styles */
-        @media print {
-            body * { visibility: hidden; }
-            #step3, #step3 * { visibility: visible; }
-            #step3 { position: absolute; left: 0; top: 0; width: 100%; }
-            .no-print { display: none !important; }
-            .question-card { page-break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
-            .scorecard-textarea { border: 1px solid #ddd; background-color: #f9f9f9; }
-        }
-    </style>
-</head>
-<body class="bg-slate-50 min-h-screen">
-    <!-- Header -->
-    <header class="gradient-bg text-white py-6 px-4 shadow-lg sticky top-0 z-20 no-print">
-        <div class="max-w-6xl mx-auto">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <div class="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
-                        <i class="fa-solid fa-brain text-2xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-3xl font-bold">InsightQ <span class="text-base font-semibold opacity-80 bg-white/20 px-2 py-1 rounded-md">Pro</span></h1>
-                        <p class="text-white text-opacity-80">AI 기반 맞춤 면접 질문 생성기</p>
-                    </div>
-                </div>
+  function goBack() {
+    showStep('step1');
+    selectedType = '';
+    selectedKey = '';
+  }
+
+  function exportToPdf() {
+    window.print();
+  }
+
+  // --- Dynamic UI Building ---
+  function buildStep2UI(type) {
+    let data, titleText, categoriesHtml = '';
+
+    if (type === 'job') {
+      data = jobData;
+      titleText = '직무를 선택해주세요';
+      const jobCategories = {
+        'IT/테크': ['software-developer', 'product-manager', 'ux-ui-designer', 'data-analyst', 'qa-engineer', 'devops-engineer'],
+        '비즈니스 / 마케팅': ['marketer', 'business-development', 'sales-manager', 'merchandiser', 'pr-specialist'],
+        '경영지원': ['hr-manager', 'finance-manager', 'strategy-planner', 'legal-compliance'],
+        '운영': ['cs-manager', 'online-education-operator', 'offline-education-operator'],
+        'r&d': ['content-editor', 'content-manager']
+      };
+      const icons = {
+        'IT/테크': 'fa-laptop-code text-blue-500',
+        '비즈니스 / 마케팅': 'fa-chart-line text-green-500',
+        '경영지원': 'fa-cogs text-purple-500',
+        '운영': 'fa-gears text-orange-500',
+        'r&d': 'fa-flask text-teal-500'
+      };
+
+      for (const category in jobCategories) {
+        const buttons = jobCategories[category].map(jobKey => {
+          if (!data[jobKey]) return '';
+          return `
+            <button class="btn-press p-4 text-center bg-white border-2 border-slate-200 rounded-xl transition-all hover:border-cyan-400"
+                    onclick="selectKey('${jobKey}')">
+              <h4 class="font-semibold text-slate-800">${data[jobKey].name}</h4>
+            </button>
+          `;
+        }).join('');
+
+        categoriesHtml += `
+          <div>
+            <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center">
+              <i class="fa-solid ${icons[category]} mr-3"></i>${category}
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              ${buttons}
             </div>
+          </div>
+        `;
+      }
+    } else if (type === 'culture') {
+      data = cultureData;
+      titleText = '핵심가치 키워드를 선택해주세요';
+      categoriesHtml = `
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          ${Object.keys(data).map(cultureKey => `
+            <button class="btn-press p-4 bg-white border-2 border-slate-200 rounded-xl transition-all text-left flex flex-col justify-between h-full hover:border-violet-400"
+                    onclick="selectKey('${cultureKey}')">
+              <h4 class="font-bold text-slate-800 mb-2">${data[cultureKey].name}</h4>
+              <p class="text-xs text-slate-500">${data[cultureKey].description}</p>
+            </button>
+          `).join('')}
         </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="max-w-6xl mx-auto px-4 py-8 md:py-12">
-        <!-- Step 1: Interview Type Selection -->
-        <div id="step1">
-            <div class="text-center mb-12 animate-fadeInUp">
-                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-4">어떤 면접 질문이 필요하신가요?</h2>
-                <p class="text-lg md:text-xl text-slate-600">AI가 실시간으로 생성하는 직무/가치/리더십 기반 질문과 JD 맞춤 질문을 경험해보세요.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                <!-- 직무 역량 -->
-                <div class="card-hover cursor-pointer animate-fadeInUp" style="animation-delay: 100ms;" onclick="selectInterviewType('job')">
-                    <div class="bg-white rounded-2xl p-8 text-center h-full shadow-lg border border-transparent hover:border-cyan-500">
-                        <div class="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                            <i class="fa-solid fa-briefcase text-3xl text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-slate-800 mb-4">직무 역량 질문</h3>
-                        <p class="text-slate-600">AI가 생성하는 직무별 질문 세트</p>
-                    </div>
-                </div>
-                <!-- 컬처핏 -->
-                <div class="card-hover cursor-pointer animate-fadeInUp" style="animation-delay: 200ms;" onclick="selectInterviewType('culture')">
-                    <div class="bg-white rounded-2xl p-8 text-center h-full shadow-lg border border-transparent hover:border-violet-500">
-                        <div class="w-20 h-20 bg-gradient-to-br from-violet-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                            <i class="fa-solid fa-users text-3xl text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-slate-800 mb-4">컬처핏 질문</h3>
-                        <p class="text-slate-600">AI가 생성하는 15가지 핵심가치 질문</p>
-                    </div>
-                </div>
-                <!-- 리더십 역량 -->
-                <div class="card-hover cursor-pointer animate-fadeInUp" style="animation-delay: 300ms;" onclick="selectInterviewType('leadership')">
-                    <div class="bg-white rounded-2xl p-8 text-center h-full shadow-lg border border-transparent hover:border-emerald-500">
-                        <div class="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                            <i class="fa-solid fa-user-tie text-3xl text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-slate-800 mb-4">리더십 역량 질문</h3>
-                        <p class="text-slate-600">팀장/임원급 리더십 검증 질문</p>
-                    </div>
-                </div>
-                <!-- AI 맞춤 질문 -->
-                <div class="card-hover cursor-pointer animate-fadeInUp" style="animation-delay: 400ms;" onclick="selectInterviewType('ai')">
-                    <div class="bg-white rounded-2xl p-8 text-center h-full shadow-lg border-2 border-dashed border-slate-300 hover:border-amber-500 hover:border-solid">
-                        <div class="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                            <i class="fa-solid fa-wand-magic-sparkles text-3xl text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-slate-800 mb-4">AI 맞춤 질문 생성 <span class="text-sm text-amber-500">Pro</span></h3>
-                        <p class="text-slate-600">채용 공고(JD) 기반 AI 질문 생성</p>
-                    </div>
-                </div>
-            </div>
+      `;
+    } else if (type === 'leadership') {
+      data = leadershipData;
+      titleText = '리더십 유형을 선택해주세요';
+      categoriesHtml = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+          ${Object.keys(data).map(leadKey => `
+            <button class="btn-press p-8 bg-white border-2 border-slate-200 rounded-xl transition-all text-center card-hover hover:border-emerald-400"
+                    onclick="selectKey('${leadKey}')">
+              <h4 class="text-2xl font-bold text-slate-800 mb-2">${data[leadKey].name}</h4>
+              <p class="text-slate-600">${data[leadKey].description}</p>
+            </button>
+          `).join('')}
         </div>
+      `;
+    }
 
-        <!-- Step 2: Job/Culture/Leadership Keyword Selection -->
-        <div id="step2" class="hidden"></div>
-        
-        <!-- Step 2-AI: JD Input -->
-        <div id="step2-ai" class="hidden">
-            <div class="text-center mb-12">
-                <h2 class="text-3xl font-bold text-slate-800 mb-4">채용 공고(JD)를 입력해주세요</h2>
-                <p class="text-lg text-slate-600 mb-6">AI가 JD를 분석하여 핵심 역량을 검증하는 맞춤 질문을 생성합니다.</p>
-                <button onclick="goBack()" class="text-blue-600 hover:text-blue-800 transition-colors font-semibold">
-                    <i class="fa-solid fa-arrow-left mr-2"></i>이전으로 돌아가기
-                </button>
+    ui.step2.innerHTML = `
+      <div class="text-center mb-12">
+        <h2 class="text-3xl font-bold text-slate-800 mb-4">${titleText}</h2>
+        <button onclick="goBack()" class="text-blue-600 hover:text-blue-800 transition-colors font-semibold">
+          <i class="fa-solid fa-arrow-left mr-2"></i>이전으로 돌아가기
+        </button>
+      </div>
+      <div class="space-y-8">${categoriesHtml}</div>
+    `;
+  }
+
+  function selectKey(key) {
+    selectedKey = key;
+    generateAiQuestionsByKey(key, selectedType);
+  }
+
+  // --- Core Logic & API Integration ---
+  async function callServerlessAPI(prompt) {
+    const apiUrl = 'https://insightq-pro.vercel.app/api/generate'; // 본인 배포 URL
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      throw new Error(`Serverless API request failed: ${response.status} - ${errorBody}`);
+    }
+
+    // 서버가 다양한 형태로 보낼 수 있으므로 견고하게 처리
+    const data = await response.json();
+    let out = data;
+
+    // 배열로 바로 주는 경우
+    if (Array.isArray(out)) return out;
+
+    // 문자열로 감싸서 주는 경우
+    if (typeof out === 'string') {
+      try { return JSON.parse(out); } catch { /* fallthrough */ }
+    }
+
+    // 속성 안에 담아 주는 경우
+    const possibleFields = ['result', 'text', 'output', 'data'];
+    for (const f of possibleFields) {
+      if (out && typeof out[f] === 'string') {
+        try { return JSON.parse(out[f]); } catch { /* fallthrough */ }
+      }
+      if (Array.isArray(out?.[f])) return out[f];
+    }
+
+    // OpenAI 스타일 (message.content)에 JSON이 있는 경우
+    const maybeContent = out?.choices?.[0]?.message?.content;
+    if (typeof maybeContent === 'string') {
+      try { return JSON.parse(maybeContent); } catch { /* fallthrough */ }
+    }
+
+    // 여기까지 오면 형식 불일치
+    throw new Error('Unexpected API response shape. Expected a JSON array of questions.');
+  }
+
+  async function generateAiQuestionsByKey(key, type) {
+    let data, topicType, name;
+    if (type === 'job') { data = jobData; topicType = '직무'; }
+    else if (type === 'culture') { data = cultureData; topicType = '핵심가치'; }
+    else if (type === 'leadership') { data = leadershipData; topicType = '리더십'; }
+    else { handleGenerationError('유형이 올바르지 않습니다.'); return; }
+
+    name = data[key].name;
+
+    showStep('loading', `AI가 '${name}' ${topicType} 질문을 생성 중입니다.`);
+
+    const prompt = `
+You are an expert hiring manager and executive coach.
+Generate exactly 5 sharp and insightful interview questions related to the topic of '${name}' in Korean.
+For each question, provide:
+1. "question": The interview question (Korean).
+2. "intent": The specific purpose (Korean).
+3. "followUp": An array of exactly 3 follow-up questions (Korean).
+IMPORTANT: Respond as a single, valid JSON array of 5 objects.
+`.trim();
+
+    try {
+      const questions = await callServerlessAPI(prompt);
+      displayQuestions(questions, `${name} 면접 질문`, `[${topicType}] ${name}`);
+    } catch (error) {
+      console.error("Error generating questions:", error);
+      handleGenerationError(error.message);
+    }
+  }
+
+  async function generateJdBasedAiQuestions() {
+    const jdText = ui.jdInput.value;
+    if (jdText.trim() === '') {
+      ui.jdInput.classList.add('ring-2', 'ring-red-500');
+      const originalPlaceholder = ui.jdInput.placeholder;
+      ui.jdInput.value = '';
+      ui.jdInput.placeholder = '먼저 채용 공고를 입력해주세요!';
+      setTimeout(() => {
+        ui.jdInput.classList.remove('ring-2', 'ring-red-500');
+        ui.jdInput.placeholder = originalPlaceholder;
+      }, 2500);
+      return;
+    }
+
+    showStep('loading', 'AI가 채용 공고를 분석하고 있습니다.');
+
+    const prompt = `
+You are an expert hiring manager analyzing the following JD (Korean).
+JD:
+---
+${jdText}
+---
+Generate exactly 5 interview questions to verify core competencies.
+For each question provide:
+1. "question" (Korean)
+2. "intent" (Korean)
+3. "followUp": array of exactly 3 follow-ups (Korean)
+IMPORTANT: Respond as a single, valid JSON array of 5 objects.
+`.trim();
+
+    try {
+      const questions = await callServerlessAPI(prompt);
+      displayQuestions(questions, "AI 맞춤 생성 질문", "[AI 생성] 입력된 JD 기반");
+    } catch (error) {
+      console.error("Error generating JD-based questions:", error);
+      handleGenerationError(error.message);
+    }
+  }
+
+  function regenerateCurrentQuestions() {
+    if (selectedType === 'ai') {
+      generateJdBasedAiQuestions();
+    } else if (selectedType === 'job' || selectedType === 'culture' || selectedType === 'leadership') {
+      generateAiQuestionsByKey(selectedKey, selectedType);
+    }
+  }
+
+  function handleGenerationError(msg = '') {
+    showStep('step3');
+    ui.questionsTitle.textContent = '질문 생성 실패';
+    ui.selectionSummary.textContent = msg ? `오류: ${msg}` : '오류가 발생했습니다.';
+    ui.questionsContainer.innerHTML = `
+      <div class="text-center text-red-500 bg-white p-8 rounded-xl shadow-md">
+        <i class="fa-solid fa-circle-exclamation text-4xl mb-4"></i>
+        <h3 class="text-xl font-bold mb-2">죄송합니다.</h3>
+        <p>AI 질문 생성 중 문제가 발생했습니다.<br>잠시 후 '질문 다시 생성' 버튼을 눌러 재시도해주세요.</p>
+      </div>
+    `;
+  }
+
+  function displayQuestions(questions, title, summary) {
+    ui.questionsTitle.textContent = title;
+    ui.selectionSummary.textContent = summary;
+    ui.questionsContainer.innerHTML = '';
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      handleGenerationError('유효한 질문 배열을 받지 못했습니다.');
+      return;
+    }
+
+    const safe = (s) => (s == null ? '' : String(s));
+
+    questions.forEach((q, index) => {
+      const follow = (Array.isArray(q.followUp) ? q.followUp : []).map(fu => `
+        <li class="flex items-start">
+          <i class="fa-solid fa-check text-emerald-500 mr-3 mt-1 shrink-0"></i><span>${safe(fu)}</span>
+        </li>
+      `).join('');
+
+      const questionCard = `
+        <div class="question-card rounded-2xl shadow-md overflow-hidden animate-fadeInUp" style="animation-delay: ${index * 100}ms;">
+          <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-start">
+              <span class="text-cyan-600 font-bold mr-3">Q${index + 1}.</span>
+              <span>${safe(q.question) || '질문 없음'}</span>
+            </h3>
+            <div class="mb-4 p-4 bg-slate-100 rounded-lg">
+              <h4 class="font-semibold text-sm text-slate-700 mb-2 flex items-center">
+                <i class="fa-solid fa-magnifying-glass-chart mr-2 text-violet-500"></i>질문의 의도
+              </h4>
+              <p class="text-sm text-slate-600">${safe(q.intent) || '의도 없음'}</p>
             </div>
-            <div class="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-                <textarea id="jd-input" class="w-full h-80 p-4 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition" placeholder="이곳에 채용 공고 내용을 붙여넣으세요. (예: 주요업무, 자격요건, 우대사항 등)"></textarea>
-                <button id="ai-generate-btn" onclick="generateJdBasedAiQuestions()" class="mt-6 w-full gradient-bg text-white font-bold py-4 px-6 rounded-xl text-lg btn-press hover:shadow-xl transition-shadow flex items-center justify-center">
-                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>AI 질문 생성하기
-                </button>
+            <div class="mb-6">
+              <h4 class="font-semibold text-sm text-slate-700 mb-3 flex items-center">
+                <i class="fa-solid fa-angles-right mr-2 text-emerald-500"></i>꼬리 질문 (Follow-up)
+              </h4>
+              <ul class="space-y-2 text-sm text-slate-600">
+                ${follow || '<li>꼬리 질문 없음</li>'}
+              </ul>
             </div>
+            <div class="border-t-2 border-dashed pt-4">
+              <h4 class="font-bold text-slate-700 mb-3 flex items-center">
+                <i class="fa-solid fa-clipboard-check mr-2 text-blue-500"></i>면접관 평가
+                <span class="text-xs font-semibold text-blue-500 ml-2">Pro</span>
+              </h4>
+              <textarea class="w-full h-24 p-3 border border-slate-300 rounded-lg scorecard-textarea" placeholder="후보자 답변에 대한 메모를 여기에 기록하세요..."></textarea>
+            </div>
+          </div>
         </div>
+      `;
+      ui.questionsContainer.innerHTML += questionCard;
+    });
 
-        <!-- Loading Screen -->
-        <div id="loading" class="hidden text-center py-20">
-            <div class="loader mx-auto"></div>
-            <h3 id="loading-text" class="text-2xl font-bold text-slate-800 mt-8">AI가 맞춤 질문을 생성하고 있습니다.</h3>
-            <p id="loading-subtext" class="text-slate-600 mt-2">잠시만 기다려주세요...</p>
-        </div>
+    showStep('step3');
+  }
 
-        <!-- Step 3: Questions Display -->
-        <div id="step3" class="hidden">
-            <div class="text-center mb-12 no-print">
-                <h2 class="text-3xl font-bold text-slate-800 mb-2" id="questionsTitle">면접 질문 생성 완료</h2>
-                <p id="selectionSummary" class="text-slate-600 mb-4 font-semibold"></p>
-                <div class="flex items-center justify-center gap-4 flex-wrap">
-                    <button onclick="goBack()" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors btn-press">
-                        <i class="fa-solid fa-arrow-left mr-2"></i>처음으로
-                    </button>
-                     <button onclick="regenerateCurrentQuestions()" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors btn-press">
-                        <i class="fa-solid fa-arrows-rotate mr-2"></i>질문 다시 생성
-                    </button>
-                    <button onclick="alert('Pro 플랜에서 지원하는 기능입니다.')" class="bg-white text-slate-700 font-semibold py-2 px-4 rounded-lg border border-slate-300 hover:bg-slate-100 transition-colors btn-press">
-                        <i class="fa-solid fa-save mr-2"></i>질문 세트 저장
-                    </button>
-                    <button onclick="exportToPdf()" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors btn-press">
-                        <i class="fa-solid fa-file-pdf mr-2"></i>PDF로 내보내기
-                    </button>
-                </div>
-            </div>
+  // --- Data ---
+  const jobData = {
+    'software-developer': { name: '소프트웨어 개발자' },
+    'product-manager': { name: '프로덕트 매니저' },
+    'ux-ui-designer': { name: 'UX/UI 디자이너' },
+    'data-analyst': { name: '데이터 분석가' },
+    'qa-engineer': { name: 'QA 엔지니어' },
+    'devops-engineer': { name: '데브옵스 엔지니어' },
+    'marketer': { name: '마케터' },
+    'business-development': { name: '영업관리' },
+    'sales-manager': { name: '영업/세일즈' },
+    'merchandiser': { name: 'MD (상품기획)' },
+    'hr-manager': { name: 'HR 담당자' },
+    'finance-manager': { name: '재무/회계' },
+    'strategy-planner': { name: '전략기획' },
+    'legal-compliance': { name: '법무/컴플라이언스' },
+    'cs-manager': { name: '고객경험/CS' },
+    'online-education-operator': { name: '온라인 교육운영' },
+    'offline-education-operator': { name: '오프라인 교육운영' },
+    'content-editor': { name: '콘텐츠 R&D' },
+    'content-manager': { name: '콘텐츠 관리' },
+    'pr-specialist': { name: 'PR/대외협력' }
+  };
 
-            <div id="questionsContainer" class="space-y-6">
-                <!-- Questions will be populated here -->
-            </div>
-        </div>
-    </main>
+  const cultureData = {
+    'initiative': { name: '주도성 / 주인의식', description: '문제를 발견하고 책임감 있게 해결' },
+    'excellence': { name: '탁월함 / 높은 기준', description: '현실에 안주하지 않고 최고를 추구' },
+    'collaboration': { name: '협업 / 팀워크', description: '개인보다 팀의 성공을 우선시' },
+    'integrity': { name: '모범 / 진실성', description: '정직하고 원칙을 지키며 신뢰를 제공' },
+    'growth': { name: '성장 / 학습', description: '끊임없이 배우고 성장을 추구' },
+    'customer-obsession': { name: '고객 중심', description: '모든 행동의 중심에 고객을 둠' },
+    'frugality': { name: '간결함 / 효율성', description: '적은 자원으로 많은 것을 해냄' },
+    'bias-for-action': { name: '행동 지향', description: '빠른 실행과 실험을 통한 학습' },
+    'dive-deep': { name: '깊이 파고들기', description: '근본 원인을 집요하게 파고듦' },
+    'resilience': { name: '긍정성 / 회복탄력성', description: '실패를 딛고 다시 도전하는 자세' },
+    'consistency': { name: '자기 관리 / 꾸준함', description: '스스로 동기를 부여하고 책임감을 완수' },
+    'adaptability': { name: '유연성 / 적응력', description: '변화에 빠르게 적응하고 도전을 즐김' },
+    'long-term-view': { name: '장기적 관점', description: '눈 앞의 이익보다 지속가능한 성장을 추구' },
+    'goal-oriented': { name: '목표 지향', description: '공동의 목표를 명확히 이해하고 몰입' },
+    'transparency': { name: '투명한 소통', description: '정보를 숨김없이 공유하고 신뢰를 구축' }
+  };
 
-    <script>
-        // --- State Management ---
-        let currentStep = 'step1';
-        let selectedType = ''; // 'job', 'culture', 'ai', 'leadership'
-        let selectedKey = ''; // e.g., 'software-developer' or 'team-lead'
-
-        // --- UI Elements ---
-        const ui = {
-            step1: document.getElementById('step1'),
-            step2: document.getElementById('step2'),
-            step2ai: document.getElementById('step2-ai'),
-            loading: document.getElementById('loading'),
-            step3: document.getElementById('step3'),
-            questionsContainer: document.getElementById('questionsContainer'),
-            questionsTitle: document.getElementById('questionsTitle'),
-            selectionSummary: document.getElementById('selectionSummary'),
-            loadingText: document.getElementById('loading-text'),
-            loadingSubtext: document.getElementById('loading-subtext'),
-            jdInput: document.getElementById('jd-input')
-        };
-
-        // --- Navigation and UI Control ---
-        function showStep(stepId, loadingMessage = null) {
-            ['step1', 'step2', 'step2-ai', 'loading', 'step3'].forEach(id => ui[id.replace('-', '')]?.classList.add('hidden'));
-            
-            const stepElement = ui[stepId.replace('-', '')]; 
-            if (stepElement) {
-                stepElement.classList.remove('hidden');
-                stepElement.classList.add('animate-fadeInUp');
-            }
-            
-            if (stepId === 'loading' && loadingMessage) {
-                ui.loadingText.textContent = loadingMessage;
-                ui.loadingSubtext.textContent = 'AI가 최적의 질문을 고심하고 있습니다...';
-            } else if (stepId === 'loading') {
-                ui.loadingText.textContent = 'AI가 맞춤 질문을 생성하고 있습니다.';
-                ui.loadingSubtext.textContent = '잠시만 기다려주세요...';
-            }
-            
-            currentStep = stepId;
-            window.scrollTo(0, 0);
-        }
-
-        function selectInterviewType(type) {
-            selectedType = type;
-            if (type === 'job' || type === 'culture' || type === 'leadership') {
-                buildStep2UI(type);
-                showStep('step2');
-            } else if (type === 'ai') {
-                showStep('step2-ai');
-            }
-        }
-
-        function goBack() {
-            showStep('step1');
-            selectedType = '';
-            selectedKey = '';
-        }
-        
-        function exportToPdf() {
-            window.print();
-        }
-
-        // --- Dynamic UI Building ---
-        function buildStep2UI(type) {
-            let data, titleText, categoriesHtml = '';
-
-            if (type === 'job') {
-                data = jobData;
-                titleText = '직무를 선택해주세요';
-                const jobCategories = {
-                    'IT/테크': ['software-developer', 'product-manager', 'ux-ui-designer', 'data-analyst', 'qa-engineer', 'devops-engineer'],
-                    '비즈니스 / 마케팅': ['marketer', 'business-development', 'sales-manager', 'merchandiser', 'pr-specialist'],
-                    '경영지원': ['hr-manager', 'finance-manager', 'strategy-planner', 'legal-compliance'],
-                    '운영': ['cs-manager', 'online-education-operator', 'offline-education-operator'],
-                    'r&d': ['content-editor', 'content-manager']
-                };
-                const icons = {
-                    'IT/테크': 'fa-laptop-code text-blue-500', 
-                    '비즈니스 / 마케팅': 'fa-chart-line text-green-500', 
-                    '경영지원': 'fa-cogs text-purple-500',
-                    '운영': 'fa-gears text-orange-500',
-                    'r&d': 'fa-flask text-teal-500'
-                };
-                for (const category in jobCategories) {
-                    categoriesHtml += `
-                        <div>
-                            <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center"><i class="fa-solid ${icons[category]} mr-3"></i>${category}</h3>
-                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                ${jobCategories[category].map(jobKey => {
-                                    return data[jobKey] ? `
-                                    <button class="btn-press p-4 text-center bg-white border-2 border-slate-200 rounded-xl transition-all" onclick="selectKey('${jobKey}')">
-                                        <h4 class="font-semibold text-slate-800">${data[jobKey].name}</h4>
-                                    </button>` : '';
-                                }).join('')}
-                            </div>
-                        </div>`;
-                }
-            } else if (type === 'culture') {
-                data = cultureData;
-                titleText = '핵심가치 키워드를 선택해주세요';
-                categoriesHtml = `
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                        ${Object.keys(data).map(cultureKey => `
-                            <button class="btn-press p-4 bg-white border-2 border-slate-200 rounded-xl transition-all text-left flex flex-col justify-between h-full" onclick="selectKey('${cultureKey}')">
-                                <h4 class="font-bold text-slate-800 mb-2">${data[cultureKey].name}</h4>
-                                <p class="text-xs text-slate-500">${data[cultureKey].description}</p>
-                            </button>
-                        `).join('')}
-                    </div>`;
-            } else if (type === 'leadership') {
-                data = leadershipData;
-                titleText = '리더십 유형을 선택해주세요';
-                categoriesHtml = `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-                        ${Object.keys(data).map(leadKey => `
-                            <button class="btn-press p-8 bg-white border-2 border-slate-200 rounded-xl transition-all text-center card-hover" onclick="selectKey('${leadKey}')">
-                                <h4 class="text-2xl font-bold text-slate-800 mb-2">${data[leadKey].name}</h4>
-                                <p class="text-slate-600">${data[leadKey].description}</p>
-                            </button>
-                        `).join('')}
-                    </div>`;
-            }
-
-            ui.step2.innerHTML = `
-                <div class="text-center mb-12">
-                    <h2 class="text-3xl font-bold text-slate-800 mb-4">${titleText}</h2>
-                    <button onclick="goBack()" class="text-blue-600 hover:text-blue-800 transition-colors font-semibold">
-                        <i class="fa-solid fa-arrow-left mr-2"></i>이전으로 돌아가기
-                    </button>
-                </div>
-                <div class="space-y-8">${categoriesHtml}</div>`;
-        }
-
-        function selectKey(key) {
-            selectedKey = key;
-            generateAiQuestionsByKey(key, selectedType);
-        }
-
-        // --- Core Logic & API Integration ---
-        async function callServerlessAPI(prompt) {
-            // This is the correct production URL for your Vercel deployment.
-            const apiUrl = 'https://insightq-pro.vercel.app/api/generate'; 
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: prompt }) 
-            });
-
-            if (!response.ok) {
-                const errorBody = await response.text();
-                throw new Error(`Serverless API request failed: ${response.status} - ${errorBody}`);
-            }
-            return await response.json(); 
-        }
-
-        async function generateAiQuestionsByKey(key, type) {
-            let data, topicType, name;
-            if (type === 'job') { data = jobData; topicType = '직무'; }
-            else if (type === 'culture') { data = cultureData; topicType = '핵심가치'; }
-            else if (type === 'leadership') { data = leadershipData; topicType = '리더십'; }
-            
-            name = data[key].name;
-            
-            showStep('loading', `AI가 '${name}' ${topicType} 질문을 생성 중입니다.`);
-
-            const prompt = `
-                You are an expert hiring manager and executive coach.
-                Generate exactly 5 sharp and insightful interview questions related to the topic of '${name}' in Korean.
-                For each question, you must provide the following in Korean:
-                1.  "question": The interview question itself.
-                2.  "intent": The specific purpose of this question.
-                3.  "followUp": An array of exactly 3 follow-up questions.
-                IMPORTANT: Your entire response MUST be a single, valid JSON array of 5 objects.
-            `;
-            try {
-                const questions = await callServerlessAPI(prompt);
-                displayQuestions(questions, `${name} 면접 질문`, `[${topicType}] ${name}`);
-            } catch (error) {
-                console.error("Error generating questions:", error);
-                handleGenerationError();
-            }
-        }
-        
-        async function generateJdBasedAiQuestions() {
-            const jdText = ui.jdInput.value;
-            if (jdText.trim() === '') {
-                ui.jdInput.classList.add('ring-2', 'ring-red-500');
-                const originalPlaceholder = ui.jdInput.placeholder;
-                ui.jdInput.value = ''; // clear any whitespace
-                ui.jdInput.placeholder = '먼저 채용 공고를 입력해주세요!';
-                
-                setTimeout(() => {
-                    ui.jdInput.classList.remove('ring-2', 'ring-red-500');
-                    ui.jdInput.placeholder = originalPlaceholder;
-                }, 2500);
-                return;
-            }
-            showStep('loading', 'AI가 채용 공고를 분석하고 있습니다.');
-
-            const prompt = `
-                You are an expert hiring manager analyzing a job description in Korean.
-                Job Description: --- ${jdText} ---
-                Based on this JD, generate exactly 5 sharp and insightful interview questions to verify the candidate's core competencies.
-                For each question, provide the following in Korean:
-                1.  "question": The interview question.
-                2.  "intent": The specific purpose of the question.
-                3.  "followUp": An array of exactly 3 follow-up questions.
-                IMPORTANT: Your response MUST be a single, valid JSON array of 5 objects.
-            `;
-
-            try {
-                const questions = await callServerlessAPI(prompt);
-                displayQuestions(questions, "AI 맞춤 생성 질문", `[AI 생성] 입력된 JD 기반`);
-            } catch (error) {
-                console.error("Error generating JD-based questions:", error);
-                handleGenerationError();
-            }
-        }
-        
-        function regenerateCurrentQuestions() {
-            if (selectedType === 'ai') {
-                generateJdBasedAiQuestions();
-            } else if (selectedType === 'job' || selectedType === 'culture' || selectedType === 'leadership') {
-                generateAiQuestionsByKey(selectedKey, selectedType);
-            }
-        }
-
-        function handleGenerationError() {
-            showStep('step3');
-            ui.questionsTitle.textContent = '질문 생성 실패';
-            ui.selectionSummary.textContent = '오류가 발생했습니다.';
-            ui.questionsContainer.innerHTML = `<div class="text-center text-red-500 bg-white p-8 rounded-xl shadow-md">
-                <i class="fa-solid fa-circle-exclamation text-4xl mb-4"></i>
-                <h3 class="text-xl font-bold mb-2">죄송합니다.</h3>
-                <p>AI 질문 생성 중 문제가 발생했습니다.<br>잠시 후 '질문 다시 생성' 버튼을 눌러 재시도해주세요.</p>
-            </div>`;
-        }
-
-        function displayQuestions(questions, title, summary) {
-            ui.questionsTitle.textContent = title;
-            ui.selectionSummary.textContent = summary;
-            ui.questionsContainer.innerHTML = '';
-
-            if (!questions || !Array.isArray(questions) || questions.length === 0) {
-                handleGenerationError();
-                return;
-            }
-
-            questions.forEach((q, index) => {
-                const questionCard = `
-                    <div class="question-card rounded-2xl shadow-md overflow-hidden animate-fadeInUp" style="animation-delay: ${index * 100}ms;">
-                        <div class="p-6">
-                            <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-start">
-                                <span class="text-cyan-600 font-bold mr-3">Q${index + 1}.</span>
-                                <span>${q.question || '질문 없음'}</span>
-                            </h3>
-                            <div class="mb-4 p-4 bg-slate-100 rounded-lg">
-                                <h4 class="font-semibold text-sm text-slate-700 mb-2 flex items-center">
-                                    <i class="fa-solid fa-magnifying-glass-chart mr-2 text-violet-500"></i>질문의 의도
-                                </h4>
-                                <p class="text-sm text-slate-600">${q.intent || '의도 없음'}</p>
-                            </div>
-                            <div class="mb-6">
-                                <h4 class="font-semibold text-sm text-slate-700 mb-3 flex items-center">
-                                    <i class="fa-solid fa-angles-right mr-2 text-emerald-500"></i>꼬리 질문 (Follow-up)
-                                </h4>
-                                <ul class="space-y-2 text-sm text-slate-600">
-                                    ${(q.followUp && Array.isArray(q.followUp) && q.followUp.map(fu => `<li class="flex items-start"><i class="fa-solid fa-check text-emerald-500 mr-3 mt-1 shrink-0"></i><span>${fu}</span></li>`).join('')) || '<li>꼬리 질문 없음</li>'}
-                                </ul>
-                            </div>
-                            <div class="border-t-2 border-dashed pt-4">
-                                <h4 class="font-bold text-slate-700 mb-3 flex items-center">
-                                    <i class="fa-solid fa-clipboard-check mr-2 text-blue-500"></i>면접관 평가 <span class="text-xs font-semibold text-blue-500 ml-2">Pro</span>
-                                </h4>
-                                <textarea class="w-full h-24 p-3 border border-slate-300 rounded-lg scorecard-textarea" placeholder="후보자 답변에 대한 메모를 여기에 기록하세요..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                ui.questionsContainer.innerHTML += questionCard;
-            });
-            showStep('step3');
-        }
-
-        // --- Simplified DataBase for UI ---
-        const jobData = {
-            'software-developer': { name: '소프트웨어 개발자' }, 'product-manager': { name: '프로덕트 매니저' }, 'ux-ui-designer': { name: 'UX/UI 디자이너' }, 'data-analyst': { name: '데이터 분석가' }, 'qa-engineer': { name: 'QA 엔지니어' }, 'devops-engineer': { name: '데브옵스 엔지니어' },
-            'marketer': { name: '마케터' }, 'business-development': { name: '영업관리' }, 'sales-manager': { name: '영업/세일즈' }, 'merchandiser': { name: 'MD (상품기획)' }, 
-            'hr-manager': { name: 'HR 담당자' }, 'finance-manager': { name: '재무/회계' }, 'strategy-planner': { name: '전략기획' }, 'legal-compliance': { name: '법무/컴플라이언스' },
-            'cs-manager': { name: '고객경험/CS' }, 
-            'online-education-operator': { name: '온라인 교육운영' }, 
-            'offline-education-operator': { name: '오프라인 교육운영' },
-            'content-editor': { name: '콘텐츠 R&D' },
-            'content-manager': { name: '콘텐츠 관리' },
-            'pr-specialist': { name: 'PR/대외협력' }
-        };
-        const cultureData = {
-            'initiative': { name: '주도성 / 주인의식', description: '문제를 발견하고 책임감 있게 해결' }, 
-            'excellence': { name: '탁월함 / 높은 기준', description: '현실에 안주하지 않고 최고를 추구' }, 
-            'collaboration': { name: '협업 / 팀워크', description: '개인보다 팀의 성공을 우선시' },
-            'integrity': { name: '모범 / 진실성', description: '정직하고 원칙을 지키며 신뢰를 제공' }, 
-            'growth': { name: '성장 / 학습', description: '끊임없이 배우고 성장을 추구' }, 
-            'customer-obsession': { name: '고객 중심', description: '모든 행동의 중심에 고객을 둠' },
-            'frugality': { name: '간결함 / 효율성', description: '적은 자원으로 많은 것을 해냄' }, 
-            'bias-for-action': { name: '행동 지향', description: '빠른 실행과 실험을 통한 학습' }, 
-            'dive-deep': { name: '깊이 파고들기', description: '근본 원인을 집요하게 파고듦' }, 
-            'resilience': { name: '긍정성 / 회복탄력성', description: '실패를 딛고 다시 도전하는 자세' },
-            'consistency': { name: '자기 관리 / 꾸준함', description: '스스로 동기를 부여하고 책임감을 완수' },
-            'adaptability': { name: '유연성 / 적응력', description: '변화에 빠르게 적응하고 도전을 즐김' },
-            'long-term-view': { name: '장기적 관점', description: '눈 앞의 이익보다 지속가능한 성장을 추구' },
-            'goal-oriented': { name: '목표 지향', description: '공동의 목표를 명확히 이해하고 몰입' },
-            'transparency': { name: '투명한 소통', description: '정보를 숨김없이 공유하고 신뢰를 구축' }
-        };
-        const leadershipData = {
-            'team-lead': { name: '팀장 리더십', description: '팀을 이끌고 성과를 창출하는 리더' },
-            'executive': { name: '임원 리더십', description: '조직의 비전을 제시하고 성장을 견인' }
-        };
-    </script>
-</body>
-</html>
-
-
+  const leadershipData = {
+    'team-lead': { name: '팀장 리더십', description: '팀을 이끌고 성과를 창출하는 리더' },
+    'executive': { name: '임원 리더십', description: '조직의 비전을 제시하고 성장을 견인' }
+  };
+</script>
