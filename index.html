@@ -233,9 +233,9 @@
 
         // --- Navigation and UI Control ---
         function showStep(stepId, loadingMessage = null) {
-            ['step1', 'step2', 'step2-ai', 'loading', 'step3'].forEach(id => ui[id.replace('-','')]?.classList.add('hidden'));
+            ['step1', 'step2', 'step2-ai', 'loading', 'step3'].forEach(id => ui[id.replace('-', '')]?.classList.add('hidden'));
             
-            const stepElement = ui[id.replace('-','')];
+            const stepElement = ui[stepId.replace('-', '')]; // FIX: Changed 'id' to 'stepId'
             if (stepElement) {
                 stepElement.classList.remove('hidden');
                 stepElement.classList.add('animate-fadeInUp');
@@ -353,7 +353,7 @@
         async function callServerlessAPI(prompt) {
             // DEPLOYMENT: This URL will point to your Vercel serverless function.
             // It sends a request to our own server, not directly to Google.
-            const apiUrl = 'https://insightq-a7osef4c7-do-young-kins-projects.vercel.app/api/generate';
+            const apiUrl = 'https://insightq-pro-a7osef4c7-do-young-kins-projects.vercel.app/api/generate';
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
