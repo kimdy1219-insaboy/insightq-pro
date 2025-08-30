@@ -351,8 +351,8 @@
 
         // --- Core Logic & API Integration ---
         async function callServerlessAPI(prompt) {
-            // DEPLOYMENT: This URL must be replaced with your actual Vercel deployment URL.
-            const apiUrl = 'https://insightq-pro-a7osef4c7-do-young-kins-projects.vercel.app/api/generate'; 
+            // This is the correct production URL for your Vercel deployment.
+            const apiUrl = 'https://insightq-pro.vercel.app/api/generate'; 
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
