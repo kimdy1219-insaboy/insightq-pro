@@ -235,7 +235,7 @@
         function showStep(stepId, loadingMessage = null) {
             ['step1', 'step2', 'step2-ai', 'loading', 'step3'].forEach(id => ui[id.replace('-','')]?.classList.add('hidden'));
             
-            const stepElement = ui[stepId.replace('-','')];
+            const stepElement = ui[id.replace('-','')];
             if (stepElement) {
                 stepElement.classList.remove('hidden');
                 stepElement.classList.add('animate-fadeInUp');
@@ -350,25 +350,23 @@
         }
 
         // --- Core Logic & API Integration ---
-        async function callGeminiAPI(prompt) {
-            const apiKey = ""; 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
-            };
+        async function callServerlessAPI(prompt) {
+            // DEPLOYMENT: This URL will point to your Vercel serverless function.
+            // It sends a request to our own server, not directly to Google.
+            const apiUrl = `/api/generate`; 
+            
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ prompt: prompt }) // Pass the prompt in the request body
             });
+
             if (!response.ok) {
                 const errorBody = await response.text();
-                throw new Error(`API request failed: ${response.status} - ${errorBody}`);
+                throw new Error(`Serverless API request failed: ${response.status} - ${errorBody}`);
             }
-            const result = await response.json();
-            const responseText = result.candidates[0].content.parts[0].text;
-            return JSON.parse(responseText);
+            // The serverless function returns the JSON directly
+            return await response.json(); 
         }
 
         async function generateAiQuestionsByKey(key, type) {
@@ -391,7 +389,7 @@
                 IMPORTANT: Your entire response MUST be a single, valid JSON array of 5 objects.
             `;
             try {
-                const questions = await callGeminiAPI(prompt);
+                const questions = await callServerlessAPI(prompt);
                 displayQuestions(questions, `${name} 면접 질문`, `[${topicType}] ${name}`);
             } catch (error) {
                 console.error("Error generating questions:", error);
@@ -427,7 +425,7 @@
             `;
 
             try {
-                const questions = await callGeminiAPI(prompt);
+                const questions = await callServerlessAPI(prompt);
                 displayQuestions(questions, "AI 맞춤 생성 질문", `[AI 생성] 입력된 JD 기반`);
             } catch (error) {
                 console.error("Error generating JD-based questions:", error);
