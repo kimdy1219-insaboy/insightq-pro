@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InsightQ Pro - AI 맞춤 질문 생성기</title>
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="[https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css](https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css)">
     <style>
         /* Pretendard Font */
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+        @import url('[https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css](https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css)');
         
         body {
             font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -235,7 +235,7 @@
         function showStep(stepId, loadingMessage = null) {
             ['step1', 'step2', 'step2-ai', 'loading', 'step3'].forEach(id => ui[id.replace('-', '')]?.classList.add('hidden'));
             
-            const stepElement = ui[stepId.replace('-', '')]; // FIX: Changed 'id' to 'stepId'
+            const stepElement = ui[stepId.replace('-', '')]; 
             if (stepElement) {
                 stepElement.classList.remove('hidden');
                 stepElement.classList.add('animate-fadeInUp');
@@ -351,21 +351,19 @@
 
         // --- Core Logic & API Integration ---
         async function callServerlessAPI(prompt) {
-            // DEPLOYMENT: This URL will point to your Vercel serverless function.
-            // It sends a request to our own server, not directly to Google.
-            const apiUrl = 'https://insightq-pro-a7osef4c7-do-young-kins-projects.vercel.app/api/generate';
+            // DEPLOYMENT: This URL must be replaced with your actual Vercel deployment URL.
+            const apiUrl = '[https://insightq-pro-a7osef4c7-do-young-kins-projects.vercel.app/api/generate](https://insightq-pro-a7osef4c7-do-young-kins-projects.vercel.app/api/generate)'; 
             
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: prompt }) // Pass the prompt in the request body
+                body: JSON.stringify({ prompt: prompt }) 
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
                 throw new Error(`Serverless API request failed: ${response.status} - ${errorBody}`);
             }
-            // The serverless function returns the JSON directly
             return await response.json(); 
         }
 
